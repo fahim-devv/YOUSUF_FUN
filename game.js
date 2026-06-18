@@ -5,19 +5,52 @@ let score = 0;
 let highScore = 0; 
 let isGameOver = false;
 
-// Animation properties for when the player dies
+// Animation properties
 let deathAnimationTimer = 0;
 let playerRotation = 0;
 
 // 1. Load Game Images
-const playerImg = new Image();
-playerImg.src = "yousufplayer.jpg"; // Your first image (Yousuf)
+const originalPlayerImg = new Image();
+originalPlayerImg.src = "yousufplayer.jpg"; // Your image with checkerboard background
 
 const gameOverImg = new Image();
-gameOverImg.src = "gopagop.jpg"; // Your second image (Banana picture)
+gameOverImg.src = "gopagop.jpg"; 
 
 const bgImg = new Image();
-bgImg.src = "gop.jpg"; // Main gameplay background image
+bgImg.src = "gop.jpg"; 
+
+// Create an off-screen canvas to automatically remove the checkerboard background
+const transparentPlayerCanvas = document.createElement("canvas");
+const tCtx = transparentPlayerCanvas.getContext("2d");
+let playerImgReady = false;
+
+originalPlayerImg.onload = function() {
+    transparentPlayerCanvas.width = originalPlayerImg.width;
+    transparentPlayerCanvas.height = originalPlayerImg.height;
+    
+    // Draw original image to our hidden canvas
+    tCtx.drawImage(originalPlayerImg, 0, 0);
+    
+    // Get all pixel data of the image
+    let imgData = tCtx.getImageData(0, 0, transparentPlayerCanvas.width, transparentPlayerCanvas.height);
+    let data = imgData.data;
+    
+    // Scan every pixel and remove white/grey grid backgrounds
+    for (let i = 0; i < data.length; i += 4) {
+        let r = data[i];
+        let g = data[i+1];
+        let b = data[i+2];
+        
+        // If the pixel is near white or light grey (the checkerboard colors)
+        if ((r > 190 && g > 190 && b > 190) || (r === g && g === b && r > 150)) {
+            data[i + 3] = 0; // Make this pixel 100% transparent!
+        }
+    }
+    
+    // Put the cleaned up pixel data back
+    tCtx.putImageData(imgData, 0, 0);
+    playerImgReady = true;
+};
 
 // Player properties
 let player = { 
@@ -39,7 +72,6 @@ let obstacle = {
     speed: 4       
 };
 
-// Jump control function
 function jump() {
     if (isGameOver) {
         resetGame(); 
@@ -47,14 +79,12 @@ function jump() {
     }
     
     if (!player.jumping) {
-        // Dynamic Jump Boost if the obstacle speed gets very high
         let jumpBoost = obstacle.speed > 8 ? -11 : -10;
         player.yVelocity = jumpBoost; 
         player.jumping = true;
     }
 }
 
-// Function to reset the game data
 function resetGame() {
     if (score > highScore) {
         highScore = score;
@@ -77,7 +107,7 @@ function resetGame() {
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 2. Render Gameplay Background
+    // Render Background
     if (bgImg.complete) {
         ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
     } else {
@@ -86,7 +116,6 @@ function gameLoop() {
     }
 
     if (!isGameOver) {
-        // --- NORMAL GAMEPLAY LOGIC ---
         player.yVelocity += 0.5; 
         player.y += player.yVelocity;
 
@@ -99,11 +128,9 @@ function gameLoop() {
         if (obstacle.x < -20) {
             obstacle.x = 400; 
             score += 1;       
-            // Increase speed dynamically as score increases
             obstacle.speed = obstacle.baseSpeed + (score * 0.5); 
         }
 
-        // 2D Box Collision Detection
         if (
             player.x < obstacle.x + obstacle.width &&
             player.x + player.width > obstacle.x &&
@@ -114,7 +141,6 @@ function gameLoop() {
         }
 
     } else {
-        // --- DEATH SPIN ANIMATION ---
         if (deathAnimationTimer < 60) { 
             player.yVelocity += 0.3; 
             player.y += player.yVelocity;
@@ -124,18 +150,20 @@ function gameLoop() {
         }
     }
 
-    // 4. Draw Player (yousufplayer.jpg) with rotation matrix
-    ctx.save(); 
-    ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
-    ctx.rotate(playerRotation);
-    ctx.drawImage(playerImg, -player.width / 2, -player.height / 2, player.width, player.height);
-    ctx.restore(); 
+    // 4. Draw Cleaned Player Image without background grid
+    if (playerImgReady) {
+        ctx.save(); 
+        ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+        ctx.rotate(playerRotation);
+        ctx.drawImage(transparentPlayerCanvas, -player.width / 2, -player.height / 2, player.width, player.height);
+        ctx.restore(); 
+    }
 
     // 5. Draw Obstacle Box
     ctx.fillStyle = obstacle.speed > 8 ? "#FFFF00" : "white"; 
     ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
 
-    // 6. Draw HUD Scores with text shadows for visibility
+    // 6. Draw HUD Scores
     ctx.fillStyle = "white";
     ctx.font = "bold 14px Arial";
     ctx.shadowColor = "black";
@@ -155,7 +183,6 @@ function gameLoop() {
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Render Game Over Image Pop-up (gopagop.jpg)
         if (gameOverImg.complete) {
             ctx.drawImage(gameOverImg, 145, 10, 110, 110); 
         }
@@ -165,7 +192,6 @@ function gameLoop() {
         ctx.textAlign = "center";
         ctx.fillText("GAME OVER", canvas.width / 2, 140);
         
-        // Custom Requested Dialog Text
         ctx.fillStyle = "#FFFF00"; 
         ctx.font = "italic bold 18px 'Courier New', monospace";
         ctx.fillText("meow gop gop", canvas.width / 2, 165);
@@ -180,5 +206,4 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// Execute core loop
 gameLoop();
